@@ -1,0 +1,52 @@
+import numpy as np
+import warnings
+import PIL
+import tensorflow as tf
+import matplotlib.pyplot as plt
+from tensorflow.keras.preprocessing.image import load_img, img_to_array
+from tensorflow.keras.applications.vgg16 import preprocess_input
+from tensorflow.keras.models import Model
+
+def predict_pneumonia(image_path, model):
+    # Carregar a imagem e pré-processá-la
+    img = load_img(image_path, target_size=(64, 64))
+    img_array = img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0)
+    img_array = preprocess_input(img_array)
+
+    # Realizar a previsão
+    prediction = model.predict(img_array)
+
+    # Exibir a imagem
+    plt.imshow(img)
+    plt.axis('off')
+    plt.show()
+
+    # Interpretar a previsão
+    pneumonia_prob = prediction[0][0]
+    print('A probabilidade de pneumonia é de: {:.2f}%'.format(pneumonia_prob * 100))
+
+# Carregando dados
+test_dir = '/content/drive/MyDrive/raio-x-torax/teste'
+
+# Carregando o modelo pré-treinado (VGG16) e removendo a camada de saída
+base_model = tf.keras.applications.VGG16(weights='imagenet', include_top=False, input_shape=(64, 64, 3))
+
+# Adicionando camadas adicionais ao modelo
+x = base_model.output
+x = tf.keras.layers.Flatten()(x)
+x = tf.keras.layers.Dense(256, activation='relu')(x)
+x = tf.keras.layers.Dropout(0.5)(x)
+predictions = tf.keras.layers.Dense(1, activation='sigmoid')(x)
+
+# Combinando o modelo base com as camadas adicionais
+model = Model(inputs=base_model.input, outputs=predictions)
+
+# Carregando os pesos do modelo treinado
+model.load_weights('/content/drive/MyDrive/model_weights.h5')
+
+# Caminho da imagem para análise
+image_path = '/content/drive/MyDrive/raio-x-torax/teste/normal/IM-0022-0001.jpeg'
+
+# Chamando a função para fazer previsões na imagem específica
+predict_pneumonia(image_path, model)

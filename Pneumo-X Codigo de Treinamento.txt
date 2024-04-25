@@ -1,0 +1,92 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import warnings
+import PIL
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.applications import VGG16
+from tensorflow.keras.models import Model
+
+# Carregando dados
+train_dir = '/content/drive/MyDrive/raio-x-torax/treino'
+valid_dir = '/content/drive/MyDrive/raio-x-torax/valid'
+test_dir = '/content/drive/MyDrive/raio-x-torax/teste'
+
+# Definindo geradores de dados com aumento de dados para treinamento e validação
+train_datagen = ImageDataGenerator(
+    rescale=1./255,
+    rotation_range=20,
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True
+)
+valid_datagen = ImageDataGenerator(rescale=1./255)
+
+train_data = train_datagen.flow_from_directory(
+    train_dir,
+    target_size=(64, 64),
+    batch_size=32,
+    class_mode='binary'
+)
+
+valid_data = valid_datagen.flow_from_directory(
+    valid_dir,
+    target_size=(64, 64),
+    batch_size=32,
+    class_mode='binary'
+)
+
+test_data = valid_datagen.flow_from_directory(
+    test_dir,
+    target_size=(64, 64),
+    batch_size=32,
+    class_mode='binary'
+)
+
+# Usando um modelo pré-treinado (VGG16)
+base_model = VGG16(weights='imagenet', include_top=False, input_shape=(64, 64, 3))
+x = base_model.output
+x = tf.keras.layers.Flatten()(x)
+x = tf.keras.layers.Dense(256, activation='relu')(x)
+x = tf.keras.layers.Dropout(0.5)(x)
+predictions = tf.keras.layers.Dense(1, activation='sigmoid')(x)
+
+model = Model(inputs=base_model.input, outputs=predictions)
+
+# Congelando as camadas do modelo base
+for layer in base_model.layers:
+    layer.trainable = False
+
+# Compilando o modelo
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+    loss='binary_crossentropy',
+    metrics=['accuracy']
+)
+
+# Treinamento do modelo
+history = model.fit(
+    train_data,
+    epochs=10,
+    validation_data=valid_data,
+    batch_size=16
+)
+
+# Salvar os pesos do modelo treinado
+model.save_weights('/content/drive/MyDrive/model_weights.h5')
+
+# Visualização de algumas previsões
+batch_size = 8
+num_batches = 1
+
+for i in range(num_batches):
+    x, y = next(test_data)
+    predictions = model.predict(x)
+
+    for j in range(min(batch_size, 8)):
+        image = x[j]
+        plt.imshow(image)
+        plt.show()
+        print('A probabilidade de pneumonia é de: {:.2f}%'.format(predictions[j][0] * 100))
